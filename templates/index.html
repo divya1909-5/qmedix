@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>QMedix - Quantum Medical Diagnosis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background: #0a0a12; color: white; font-family: system-ui, sans-serif; overflow-x: hidden; }
+        .glass { background: rgba(255,255,255,0.04); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.06); }
+        .glass-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 20px; transition: all 0.3s ease; cursor: pointer; }
+        .glass-card:hover { border-color: rgba(124,58,237,0.3); transform: translateY(-2px); }
+        .glass-card.expanded { border-color: rgba(124,58,237,0.6); background: rgba(124,58,237,0.08); }
+        .nav-link { padding: 10px 20px; border-radius: 10px; cursor: pointer; transition: 0.3s; font-weight: 500; }
+        .nav-link:hover { background: rgba(255,255,255,0.05); }
+        .nav-link.active { background: rgba(139,92,246,0.2); color: #a78bfa; }
+        .btn-primary { background: linear-gradient(135deg, #7c3aed, #6d28d9); padding: 12px 28px; border-radius: 9999px; font-weight: 600; border: none; color: white; cursor: pointer; transition: 0.3s; }
+        .btn-primary:hover { transform: scale(1.02); box-shadow: 0 8px 30px rgba(124,58,237,0.4); }
+        .btn-secondary { border: 1px solid rgba(255,255,255,0.15); padding: 12px 28px; border-radius: 9999px; background: transparent; color: white; cursor: pointer; transition: 0.3s; }
+        .btn-secondary:hover { background: rgba(255,255,255,0.05); }
+        .delete-btn { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); color: #ef4444; padding: 4px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; transition: all 0.3s ease; }
+        .delete-btn:hover { background: rgba(239,68,68,0.2); transform: scale(1.05); }
+        .delete-btn-danger { background: #ef4444; border: none; color: white; padding: 8px 16px; border-radius: 8px; font-size: 0.85rem; cursor: pointer; transition: all 0.3s ease; }
+        .delete-btn-danger:hover { background: #dc2626; transform: scale(1.02); }
+        input, select { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 12px 16px; color: white; width: 100%; }
+        input:focus, select:focus { outline: none; border-color: #7c3aed; }
+        .page { display: none; animation: fadeIn 0.5s ease; }
+        .page.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-20px); } }
+        .stat-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 24px; text-align: center; }
+        .stat-card .number { font-size: 2.5rem; font-weight: 700; margin: 8px 0; }
+        .stat-card .label { color: #9ca3af; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .badge { padding: 4px 12px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+        .badge-success { background: rgba(34,197,94,0.2); color: #22c55e; }
+        .badge-warning { background: rgba(250,204,21,0.2); color: #facc15; }
+        .badge-danger { background: rgba(239,68,68,0.2); color: #ef4444; }
+        .badge-info { background: rgba(59,130,246,0.2); color: #3b82f6; }
+        .landing { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a12 100%); }
+        .quantum-logo { font-size: 8rem; animation: float 3s ease-in-out infinite; }
+        .particle { position: absolute; width: 4px; height: 4px; background: rgba(124,58,237,0.3); border-radius: 50%; animation: particle-float 10s infinite; }
+        @keyframes particle-float { 0% { transform: translateY(0) scale(1); opacity: 0; } 50% { opacity: 1; } 100% { transform: translateY(-100px) scale(0); opacity: 0; } }
+        .report-table { width: 100%; border-collapse: collapse; }
+        .report-table th { text-align: left; padding: 10px; color: #9ca3af; font-weight: 500; font-size: 0.85rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+        .report-table td { padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+        .report-table tr:hover { background: rgba(255,255,255,0.02); }
+        .risk-bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.1); overflow: hidden; }
+        .risk-bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+        .card-details { max-height: 0; overflow: hidden; transition: max-height 0.5s ease, opacity 0.3s ease; opacity: 0; }
+        .card-details.open { max-height: 300px; opacity: 1; }
+        .card-icon { transition: transform 0.3s ease; }
+        .glass-card:hover .card-icon { transform: scale(1.1); }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <!-- LANDING PAGE -->
+    <div id="landingPage" class="landing fixed inset-0 z-50 bg-[#0a0a12]">
+        <div class="text-center px-6">
+            <div class="particle" style="left:10%; animation-delay:0s;"></div>
+            <div class="particle" style="left:20%; animation-delay:2s;"></div>
+            <div class="particle" style="left:40%; animation-delay:4s;"></div>
+            <div class="particle" style="left:60%; animation-delay:1s;"></div>
+            <div class="particle" style="left:80%; animation-delay:3s;"></div>
+            <div class="particle" style="left:90%; animation-delay:5s;"></div>
+            
+            <div class="quantum-logo mb-6">🧬</div>
+            
+            <h1 class="text-6xl md:text-7xl font-bold bg-gradient-to-r from-purple-400 via-blue-400 to-purple-400 bg-clip-text text-transparent mb-4">
+                QMedix
+            </h1>
+            <p class="text-2xl text-gray-300 mb-2">Quantum Medical Diagnosis System</p>
+            <p class="text-gray-400 max-w-md mx-auto mb-8">
+                Hybrid Classical-Quantum AI for accurate disease risk prediction
+            </p>
+            
+            <div class="max-w-2xl mx-auto grid grid-cols-2 gap-4 mb-8">
+                <div class="glass-card p-4">
+                    <div class="text-3xl mb-2">⚛️</div>
+                    <h4 class="text-purple-300 font-semibold">Quantum QSVC</h4>
+                    <p class="text-xs text-gray-400">Quantum Support Vector Classifier</p>
+                    <div class="mt-2 text-xs text-green-400">⚡ Quantum Advantage</div>
+                </div>
+                <div class="glass-card p-4">
+                    <div class="text-3xl mb-2">🧠</div>
+                    <h4 class="text-blue-300 font-semibold">Classical SVM</h4>
+                    <p class="text-xs text-gray-400">Support Vector Machine</p>
+                    <div class="mt-2 text-xs text-blue-400">📊 High Accuracy</div>
+                </div>
+            </div>
+            
+            <button onclick="enterApp()" class="btn-primary text-xl px-12 py-4">
+                <i class="fas fa-rocket mr-2"></i> Get Started
+            </button>
+            <p class="text-xs text-gray-500 mt-4">Powered by Qiskit + scikit-learn</p>
+        </div>
+    </div>
+
+    <!-- MAIN APP -->
+    <div id="mainApp" style="display:none;">
+        <!-- Navbar -->
+        <nav class="bg-gray-900/80 backdrop-blur border-b border-gray-800 px-6 py-3 fixed top-0 left-0 right-0 z-40">
+            <div class="max-w-7xl mx-auto flex justify-between items-center">
+                <div class="text-2xl font-bold text-purple-400 flex items-center gap-2">
+                    <span>🧬</span> QMedix
+                </div>
+                <div class="flex items-center gap-1">
+                    <span class="nav-link active" data-page="home"><i class="fas fa-home mr-1"></i>Home</span>
+                    <span class="nav-link" data-page="patient"><i class="fas fa-user-plus mr-1"></i>Patient</span>
+                    <span class="nav-link" data-page="predict"><i class="fas fa-microscope mr-1"></i>Predict</span>
+                    <span class="nav-link" data-page="report"><i class="fas fa-file-medical mr-1"></i>Report</span>
+                    <span class="nav-link" data-page="analytics"><i class="fas fa-chart-line mr-1"></i>Analytics</span>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Pages -->
+        <div class="max-w-7xl mx-auto px-6 pt-24 pb-12">
+
+            <!-- HOME -->
+            <div id="page-home" class="page active">
+                <div class="text-center py-12">
+                    <h1 class="text-5xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent mb-4">
+                        Quantum Medical Diagnosis System
+                    </h1>
+                    <p class="text-xl text-gray-300 max-w-2xl mx-auto">
+                        Hybrid diagnostic platform comparing Classical ML with Quantum Computing
+                    </p>
+                    <div class="flex justify-center gap-4 mt-8">
+                        <button class="btn-primary" onclick="navigateTo('patient')">
+                            <i class="fas fa-play mr-2"></i> Start Diagnosis →
+                        </button>
+                        <button class="btn-secondary" onclick="navigateTo('analytics')">
+                            <i class="fas fa-chart-bar mr-2"></i> View Analytics
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="grid md:grid-cols-3 gap-6">
+                    <div class="glass-card p-6 text-center">
+                        <div class="text-4xl mb-3 card-icon">🧠</div>
+                        <h4 class="text-lg font-semibold text-blue-300">Classical SVM</h4>
+                        <p class="text-gray-400">Support Vector Machine with RBF kernel</p>
+                    </div>
+                    <div class="glass-card p-6 text-center">
+                        <div class="text-4xl mb-3 card-icon">⚛️</div>
+                        <h4 class="text-lg font-semibold text-purple-300">Quantum QSVC</h4>
+                        <p class="text-gray-400">Quantum Support Vector Classifier</p>
+                    </div>
+                    <div class="glass-card p-6 text-center" onclick="navigateTo('analytics')" style="cursor: pointer;">
+                        <div class="text-4xl mb-3 card-icon">🏥</div>
+                        <h4 class="text-lg font-semibold text-green-300">Real-time Diagnosis</h4>
+                        <p class="text-gray-400">Instant risk assessment from patient data</p>
+                        <div class="text-xs text-green-400 mt-2">
+                            <i class="fas fa-arrow-right"></i> Click to view analytics
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PATIENT -->
+            <div id="page-patient" class="page">
+                <h2 class="text-3xl font-bold text-purple-300 mb-2">Patient Information</h2>
+                <p class="text-gray-400 text-sm mb-6">Enter patient details for diagnosis</p>
+                
+                <form id="patientForm" class="glass-card p-8 space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div><label class="block text-gray-400 text-sm mb-1">Patient Name *</label><input id="p_name" placeholder="Full name" required /></div>
+                        <div><label class="block text-gray-400 text-sm mb-1">Age *</label><input id="p_age" type="number" value="45" min="1" max="120" required /></div>
+                        <div><label class="block text-gray-400 text-sm mb-1">Gender *</label>
+                            <select id="p_gender"><option>Male</option><option>Female</option><option>Other</option></select>
+                        </div>
+                        <div><label class="block text-gray-400 text-sm mb-1">Systolic BP *</label><input id="p_bp" type="number" value="120" min="80" max="250" required /></div>
+                        <div><label class="block text-gray-400 text-sm mb-1">Cholesterol *</label><input id="p_chol" type="number" value="200" min="100" max="400" required /></div>
+                        <div><label class="block text-gray-400 text-sm mb-1">Heart Rate *</label><input id="p_hr" type="number" value="72" min="40" max="150" required /></div>
+                        <div><label class="block text-gray-400 text-sm mb-1">BMI *</label><input id="p_bmi" type="number" step="0.1" value="24.5" min="10" max="50" required /></div>
+                        <div><label class="block text-gray-400 text-sm mb-1">Glucose *</label><input id="p_glucose" type="number" value="100" min="50" max="300" required /></div>
+                    </div>
+                    <div>
+                        <label class="block text-gray-400 text-sm mb-1">Smoking *</label>
+                        <div class="flex gap-2">
+                            <button type="button" id="smokeYes" class="px-6 py-2 rounded-lg bg-gray-700 text-gray-400">Yes</button>
+                            <button type="button" id="smokeNo" class="px-6 py-2 rounded-lg bg-green-500 text-white">No</button>
+                        </div>
+                        <input type="hidden" id="p_smoking" value="false" />
+                    </div>
+                    <button type="submit" class="btn-primary w-full py-3 text-lg">Save Patient</button>
+                </form>
+                <div id="patientMessage" class="mt-4 hidden"></div>
+            </div>
+
+            <!-- PREDICT -->
+            <div id="page-predict" class="page">
+                <h2 class="text-3xl font-bold text-purple-300 mb-6">Disease Prediction</h2>
+                
+                <div class="glass-card p-6 flex flex-wrap gap-4 items-end">
+                    <div class="flex-1 min-w-[200px]">
+                        <label class="block text-gray-400 text-sm mb-1">Select Patient</label>
+                        <select id="predictPatient" class="w-full bg-gray-700/50 p-3 rounded-lg border border-gray-600 text-white">
+                            <option value="">-- Select Patient --</option>
+                        </select>
+                    </div>
+                    <button id="predictBtn" class="btn-primary">🔬 Predict</button>
+                    <button onclick="document.getElementById('predictionResult').classList.add('hidden')" class="btn-secondary">Clear</button>
+                    <button id="deletePatientBtn" class="delete-btn-danger" onclick="deletePatient()">
+                        <i class="fas fa-trash mr-2"></i> Delete Patient
+                    </button>
+                </div>
+                
+                <div class="mt-2 flex gap-2">
+                    <button id="deleteReportsBtn" class="delete-btn" onclick="deleteAllReports()">
+                        <i class="fas fa-file-medical-alt mr-1"></i> Delete All Reports for this Patient
+                    </button>
+                </div>
+                
+                <div id="predictionResult" class="mt-6 hidden">
+                    <div class="glass-card p-6">
+                        <h3 class="text-xl font-bold text-white mb-4">Prediction Results</h3>
+                        
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <div class="bg-blue-500/10 p-4 rounded-lg border border-blue-500/30">
+                                <h4 class="font-bold text-blue-300 text-lg">🧠 Classical SVM</h4>
+                                <p id="cResult">Result: <span class="text-green-400">Low Risk</span></p>
+                                <p id="cConf">Confidence: 85%</p>
+                                <div class="w-full bg-gray-700 rounded-full h-2 mt-2">
+                                    <div id="cConfBar" class="bg-blue-500 h-2 rounded-full" style="width: 85%"></div>
+                                </div>
+                            </div>
+                            <div class="bg-purple-500/10 p-4 rounded-lg border border-purple-500/30">
+                                <h4 class="font-bold text-purple-300 text-lg">⚛️ Quantum QSVC</h4>
+                                <p id="qResult">Result: <span class="text-green-400">Low Risk</span></p>
+                                <p id="qConf">Confidence: 82%</p>
+                                <div class="w-full bg-gray-700 rounded-full h-2 mt-2">
+                                    <div id="qConfBar" class="bg-purple-500 h-2 rounded-full" style="width: 82%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="text-center p-4 bg-gray-700/50 rounded-lg mt-4">
+                            <h4 class="text-xl font-bold">Final Risk Level</h4>
+                            <div id="riskLevelDisplay" class="inline-block px-8 py-3 rounded-full text-2xl font-bold mt-2">
+                                <span id="riskLevel" class="text-green-400">Low</span>
+                            </div>
+                            <p id="riskPercentage" class="text-gray-400 mt-2">Risk Score: 0%</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- REPORT -->
+            <div id="page-report" class="page">
+                <h2 class="text-3xl font-bold text-purple-300 mb-6">Medical Report</h2>
+                
+                <div class="glass-card p-8 space-y-4">
+                    <div>
+                        <label class="block text-gray-400 text-sm mb-1">Select Patient</label>
+                        <select id="reportPatient" class="w-full bg-gray-700/50 p-3 rounded-lg border border-gray-600 text-white">
+                            <option value="">-- Select Patient --</option>
+                        </select>
+                    </div>
+                    <div class="flex gap-2">
+                        <button id="reportBtn" class="btn-primary flex-1">Generate Report</button>
+                        <button id="deleteReportBtn" class="delete-btn-danger" onclick="deleteCurrentReport()">
+                            <i class="fas fa-trash mr-2"></i> Delete Report
+                        </button>
+                    </div>
+                    
+                    <div id="reportContent" class="mt-6 hidden">
+                        <div class="bg-gray-800/50 rounded-xl p-6 border border-gray-700">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <h3 class="text-2xl font-bold text-blue-300" id="reportName">Patient: Unknown</h3>
+                                    <p class="text-gray-400 text-sm">Report generated: <span id="reportDate">-</span></p>
+                                </div>
+                                <div class="text-right">
+                                    <span class="badge text-lg px-4 py-2" id="reportRiskBadge">Low Risk</span>
+                                    <p class="text-xs text-gray-500 mt-1">Risk Level</p>
+                                </div>
+                            </div>
+                            
+                            <div class="grid grid-cols-3 gap-4 mt-4">
+                                <div class="bg-gray-700/30 p-3 rounded-lg text-center">
+                                    <p class="text-gray-400 text-xs">Classical Result</p>
+                                    <p class="font-semibold text-blue-300" id="reportClassical">-</p>
+                                </div>
+                                <div class="bg-gray-700/30 p-3 rounded-lg text-center">
+                                    <p class="text-gray-400 text-xs">Quantum Result</p>
+                                    <p class="font-semibold text-purple-300" id="reportQuantum">-</p>
+                                </div>
+                                <div class="bg-gray-700/30 p-3 rounded-lg text-center">
+                                    <p class="text-gray-400 text-xs">Final Risk Score</p>
+                                    <p class="font-semibold text-white" id="reportFinal">-</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4 bg-gray-800/50 rounded-xl p-6 border border-gray-700">
+                            <h4 class="text-lg font-semibold text-white mb-4">📊 Detailed Risk Assessment</h4>
+                            <table class="report-table">
+                                <thead>
+                                    <tr>
+                                        <th>Parameter</th>
+                                        <th>Value</th>
+                                        <th>Normal Range</th>
+                                        <th>Status</th>
+                                        <th>Risk Contribution</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="reportRiskTable">
+                                    <tr><td colspan="5" class="text-center text-gray-400">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div class="mt-4 bg-gray-800/50 rounded-xl p-6 border border-gray-700">
+                            <h4 class="text-lg font-semibold text-white mb-4">📈 Risk Breakdown</h4>
+                            <div class="grid grid-cols-2 gap-4" id="riskBreakdown">
+                                <div>
+                                    <p class="text-gray-400 text-sm">Classical SVM Risk</p>
+                                    <div class="risk-bar mt-1">
+                                        <div id="classicalRiskBar" class="risk-bar-fill bg-blue-500" style="width: 0%"></div>
+                                    </div>
+                                    <p class="text-xs text-gray-400 mt-1" id="classicalRiskText">0%</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-400 text-sm">Quantum QSVC Risk</p>
+                                    <div class="risk-bar mt-1">
+                                        <div id="quantumRiskBar" class="risk-bar-fill bg-purple-500" style="width: 0%"></div>
+                                    </div>
+                                    <p class="text-xs text-gray-400 mt-1" id="quantumRiskText">0%</p>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <p class="text-gray-400 text-sm">Final Risk Score</p>
+                                <div class="risk-bar mt-1 h-3">
+                                    <div id="finalRiskBar" class="risk-bar-fill" style="width: 0%; background: linear-gradient(90deg, #22c55e, #facc15, #ef4444);"></div>
+                                </div>
+                                <p class="text-xs text-gray-400 mt-1" id="finalRiskText">0%</p>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4 bg-gray-800/50 rounded-xl p-6 border border-gray-700">
+                            <p class="text-gray-400 text-sm font-medium">💡 Recommendation</p>
+                            <p id="reportRecommendation" class="mt-2 text-white">-</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ANALYTICS -->
+            <div id="page-analytics" class="page">
+                <h2 class="text-3xl font-bold text-purple-300 mb-6">Analytics Dashboard</h2>
+                
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="stat-card"><p class="label">Total Patients</p><p class="number text-blue-400" id="statPatients">0</p></div>
+                    <div class="stat-card"><p class="label">Predictions</p><p class="number text-purple-400" id="statPredictions">0</p></div>
+                    <div class="stat-card"><p class="label">Classical Conf.</p><p class="number text-blue-400" id="statClassical">0%</p></div>
+                    <div class="stat-card"><p class="label">Quantum Conf.</p><p class="number text-purple-400" id="statQuantum">0%</p></div>
+                </div>
+                
+                <div class="grid md:grid-cols-2 gap-6 mt-6">
+                    <div class="glass-card p-6"><h4 class="text-gray-400 text-sm uppercase font-semibold mb-4">Model Confidence</h4><canvas id="barChart"></canvas></div>
+                    <div class="glass-card p-6"><h4 class="text-gray-400 text-sm uppercase font-semibold mb-4">Risk Distribution</h4><canvas id="pieChart"></canvas></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ============================================
+    // LANDING PAGE
+    // ============================================
+    function enterApp() {
+        document.getElementById('landingPage').style.display = 'none';
+        document.getElementById('mainApp').style.display = 'block';
+        loadPatients();
+        loadAnalytics();
+    }
+
+    // ============================================
+    // NAVIGATION
+    // ============================================
+    const navLinks = document.querySelectorAll('.nav-link');
+    const pages = {
+        home: document.getElementById('page-home'),
+        patient: document.getElementById('page-patient'),
+        predict: document.getElementById('page-predict'),
+        report: document.getElementById('page-report'),
+        analytics: document.getElementById('page-analytics')
+    };
+
+    function navigateTo(page) {
+        Object.keys(pages).forEach(key => pages[key].classList.remove('active'));
+        pages[page].classList.add('active');
+        navLinks.forEach(link => {
+            link.classList.remove('active');
+            if (link.dataset.page === page) link.classList.add('active');
+        });
+        if (page === 'analytics') loadAnalytics();
+        if (page === 'predict' || page === 'report') loadPatients();
+    }
+
+    navLinks.forEach(link => {
+        link.addEventListener('click', () => navigateTo(link.dataset.page));
+    });
+
+    // ============================================
+    // API HELPER
+    // ============================================
+    async function apiCall(endpoint, method = 'GET', data = null) {
+        const opts = { method, headers: { 'Content-Type': 'application/json' } };
+        if (data) opts.body = JSON.stringify(data);
+        const res = await fetch('/api' + endpoint, opts);
+        return res.json();
+    }
+
+    // ============================================
+    // DELETE FUNCTIONS
+    // ============================================
+    
+    async function deletePatient() {
+        const patientId = document.getElementById('predictPatient').value;
+        if (!patientId) {
+            alert('⚠️ Please select a patient first');
+            return;
+        }
+        
+        const select = document.getElementById('predictPatient');
+        const patientName = select.options[select.selectedIndex].text;
+        
+        if (!confirm(`⚠️ Are you sure you want to delete "${patientName}" and ALL their reports?\n\nThis action cannot be undone!`)) {
+            return;
+        }
+        
+        try {
+            const res = await fetch(`/api/patient/${patientId}`, {
+                method: 'DELETE'
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                alert('✅ ' + data.message);
+                loadPatients();
+                document.getElementById('predictionResult').classList.add('hidden');
+                document.getElementById('predictPatient').value = '';
+                document.getElementById('reportPatient').value = '';
+                document.getElementById('reportContent').classList.add('hidden');
+            } else {
+                throw new Error(data.error || 'Delete failed');
+            }
+        } catch(err) {
+            alert('❌ Error deleting patient: ' + err.message);
+        }
+    }
+
+    async function deleteAllReports() {
+        const patientId = document.getElementById('predictPatient').value;
+        if (!patientId) {
+            alert('⚠️ Please select a patient first');
+            return;
+        }
+        
+        if (!confirm('⚠️ Are you sure you want to delete ALL reports for this patient?\n\nThis action cannot be undone!')) {
+            return;
+        }
+        
+        try {
+            const res = await fetch(`/api/patient/${patientId}/predictions`, {
+                method: 'DELETE'
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                alert('✅ ' + data.message);
+                document.getElementById('predictionResult').classList.add('hidden');
+            } else {
+                throw new Error(data.error || 'Delete failed');
+            }
+        } catch(err) {
+            alert('❌ Error deleting reports: ' + err.message);
+        }
+    }
+
+    async function deleteCurrentReport() {
+        const patientId = document.getElementById('reportPatient').value;
+        if (!patientId) {
+            alert('⚠️ Please select a patient first');
+            return;
+        }
+        
+        const reportContent = document.getElementById('reportContent');
+        if (reportContent.classList.contains('hidden')) {
+            alert('⚠️ No report to delete. Generate a report first.');
+            return;
+        }
+        
+        const select = document.getElementById('reportPatient');
+        const patientName = select.options[select.selectedIndex].text;
+        
+        if (!confirm(`⚠️ Are you sure you want to delete the latest report for "${patientName}"?\n\nThis action cannot be undone!`)) {
+            return;
+        }
+        
+        try {
+            const predictionsRes = await fetch(`/api/predictions/${patientId}`);
+            const predictions = await predictionsRes.json();
+            
+            if (!predictions || predictions.length === 0) {
+                alert('⚠️ No reports found for this patient');
+                return;
+            }
+            
+            const latestPredictionId = predictions[0].id;
+            const res = await fetch(`/api/prediction/${latestPredictionId}`, {
+                method: 'DELETE'
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                alert('✅ ' + data.message);
+                reportContent.classList.add('hidden');
+                loadPatients();
+            } else {
+                throw new Error(data.error || 'Delete failed');
+            }
+        } catch(err) {
+            alert('❌ Error deleting report: ' + err.message);
+        }
+    }
+
+    // ============================================
+    // PATIENT FORM
+    // ============================================
+    document.getElementById('smokeYes').addEventListener('click', function() {
+        document.getElementById('smokeYes').className = 'px-6 py-2 rounded-lg bg-red-500 text-white';
+        document.getElementById('smokeNo').className = 'px-6 py-2 rounded-lg bg-gray-700 text-gray-400';
+        document.getElementById('p_smoking').value = 'true';
+    });
+    document.getElementById('smokeNo').addEventListener('click', function() {
+        document.getElementById('smokeNo').className = 'px-6 py-2 rounded-lg bg-green-500 text-white';
+        document.getElementById('smokeYes').className = 'px-6 py-2 rounded-lg bg-gray-700 text-gray-400';
+        document.getElementById('p_smoking').value = 'false';
+    });
+
+    document.getElementById('patientForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        btn.innerHTML = '⏳ Saving...';
+        btn.disabled = true;
+        
+        try {
+            const data = {
+                name: document.getElementById('p_name').value,
+                age: parseInt(document.getElementById('p_age').value),
+                gender: document.getElementById('p_gender').value,
+                blood_pressure: parseFloat(document.getElementById('p_bp').value),
+                cholesterol: parseFloat(document.getElementById('p_chol').value),
+                heart_rate: parseFloat(document.getElementById('p_hr').value),
+                bmi: parseFloat(document.getElementById('p_bmi').value),
+                glucose: parseFloat(document.getElementById('p_glucose').value),
+                smoking: document.getElementById('p_smoking').value === 'true'
+            };
+            
+            const res = await apiCall('/patient', 'POST', data);
+            
+            if (res.success) {
+                document.getElementById('patientMessage').className = 'mt-4 p-4 bg-green-500/20 border border-green-500 rounded-lg text-green-400';
+                document.getElementById('patientMessage').textContent = '✅ Patient saved! ID: ' + res.id;
+                document.getElementById('patientMessage').classList.remove('hidden');
+                document.getElementById('p_name').value = '';
+                loadPatients();
+                setTimeout(() => navigateTo('predict'), 1000);
+            } else {
+                throw new Error(res.error || 'Unknown error');
+            }
+        } catch(err) {
+            document.getElementById('patientMessage').className = 'mt-4 p-4 bg-red-500/20 border border-red-500 rounded-lg text-red-400';
+            document.getElementById('patientMessage').textContent = '❌ Error: ' + err.message;
+            document.getElementById('patientMessage').classList.remove('hidden');
+        } finally {
+            btn.innerHTML = 'Save Patient';
+            btn.disabled = false;
+        }
+    });
+
+    // ============================================
+    // LOAD PATIENTS
+    // ============================================
+    async function loadPatients() {
+        try {
+            const patients = await apiCall('/patients');
+            ['predictPatient', 'reportPatient'].forEach(id => {
+                const sel = document.getElementById(id);
+                if (!sel) return;
+                const currentVal = sel.value;
+                sel.innerHTML = '<option value="">-- Select Patient --</option>';
+                patients.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.id;
+                    opt.textContent = p.name + ' (ID: ' + p.id + ')';
+                    if (opt.value === currentVal) opt.selected = true;
+                    sel.appendChild(opt);
+                });
+            });
+        } catch(e) { console.error(e); }
+    }
+
+    // ============================================
+    // PREDICT
+    // ============================================
+    document.getElementById('predictBtn').addEventListener('click', async () => {
+        const patientId = document.getElementById('predictPatient').value;
+        if (!patientId) {
+            alert('Please select a patient');
+            return;
+        }
+        
+        const btn = document.getElementById('predictBtn');
+        btn.innerHTML = '⏳ Predicting...';
+        btn.disabled = true;
+        
+        try {
+            const result = await apiCall('/predict', 'POST', { patient_id: patientId });
+            
+            if (result.error) {
+                throw new Error(result.error);
+            }
+            
+            document.getElementById('predictionResult').classList.remove('hidden');
+            
+            const cIsHigh = result.classical.result === 'High Risk';
+            document.getElementById('cResult').innerHTML = `Result: <span class="${cIsHigh ? 'text-red-400' : 'text-green-400'}">${result.classical.result}</span>`;
+            document.getElementById('cConf').textContent = `Confidence: ${(result.classical.confidence * 100).toFixed(1)}%`;
+            document.getElementById('cConfBar').style.width = `${(result.classical.confidence * 100)}%`;
+            
+            const qIsHigh = result.quantum.result === 'High Risk';
+            document.getElementById('qResult').innerHTML = `Result: <span class="${qIsHigh ? 'text-red-400' : 'text-green-400'}">${result.quantum.result}</span>`;
+            document.getElementById('qConf').textContent = `Confidence: ${(result.quantum.confidence * 100).toFixed(1)}%`;
+            document.getElementById('qConfBar').style.width = `${(result.quantum.confidence * 100)}%`;
+            
+            const riskLevel = document.getElementById('riskLevel');
+            riskLevel.textContent = result.risk_level;
+            riskLevel.className = result.risk_level === 'High' ? 'text-red-400' : 
+                                  result.risk_level === 'Medium' ? 'text-yellow-400' : 'text-green-400';
+            
+            document.getElementById('riskPercentage').textContent = `Risk Score: ${(result.final_risk * 100).toFixed(1)}%`;
+            
+        } catch(err) {
+            alert('❌ Prediction error: ' + err.message);
+        } finally {
+            btn.innerHTML = '🔬 Predict';
+            btn.disabled = false;
+        }
+    });
+
+    // ============================================
+    // REPORT
+    // ============================================
+    document.getElementById('reportBtn').addEventListener('click', async () => {
+        const patientId = document.getElementById('reportPatient').value;
+        if (!patientId) {
+            alert('Please select a patient');
+            return;
+        }
+        
+        const btn = document.getElementById('reportBtn');
+        btn.innerHTML = '⏳ Generating...';
+        btn.disabled = true;
+        
+        try {
+            const result = await apiCall('/predict', 'POST', { patient_id: patientId });
+            
+            if (result.error) {
+                throw new Error(result.error);
+            }
+            
+            const container = document.getElementById('reportContent');
+            container.classList.remove('hidden');
+            
+            document.getElementById('reportName').textContent = 'Patient: ' + result.patient_name;
+            document.getElementById('reportDate').textContent = new Date().toLocaleString();
+            
+            const badge = document.getElementById('reportRiskBadge');
+            badge.textContent = result.risk_level;
+            badge.className = `badge text-lg px-4 py-2 ${result.risk_level === 'High' ? 'badge-danger' : result.risk_level === 'Medium' ? 'badge-warning' : 'badge-success'}`;
+            
+            document.getElementById('reportClassical').textContent = result.classical.result;
+            document.getElementById('reportQuantum').textContent = result.quantum.result;
+            document.getElementById('reportFinal').textContent = (result.final_risk * 100).toFixed(1) + '%';
+            
+            const patients = await apiCall('/patients');
+            const patient = patients.find(p => p.id == patientId);
+            
+            if (patient) {
+                const tbody = document.getElementById('reportRiskTable');
+                const parameters = [
+                    { name: 'Age', value: patient.age, normal: '20-60', risk: patient.age > 60 ? 'High' : patient.age > 50 ? 'Medium' : 'Low' },
+                    { name: 'Blood Pressure', value: patient.blood_pressure, normal: '90-120', risk: patient.blood_pressure > 140 ? 'High' : patient.blood_pressure > 130 ? 'Medium' : 'Low' },
+                    { name: 'Cholesterol', value: patient.cholesterol, normal: '125-200', risk: patient.cholesterol > 240 ? 'High' : patient.cholesterol > 200 ? 'Medium' : 'Low' },
+                    { name: 'Heart Rate', value: patient.heart_rate, normal: '60-100', risk: patient.heart_rate > 100 || patient.heart_rate < 60 ? 'High' : patient.heart_rate > 90 ? 'Medium' : 'Low' },
+                    { name: 'BMI', value: patient.bmi, normal: '18.5-25', risk: patient.bmi > 30 ? 'High' : patient.bmi > 27 ? 'Medium' : 'Low' },
+                    { name: 'Glucose', value: patient.glucose, normal: '70-100', risk: patient.glucose > 140 ? 'High' : patient.glucose > 100 ? 'Medium' : 'Low' },
+                    { name: 'Smoking', value: patient.smoking ? 'Yes' : 'No', normal: 'No', risk: patient.smoking ? 'High' : 'Low' }
+                ];
+                
+                tbody.innerHTML = parameters.map(p => {
+                    const statusColor = p.risk === 'High' ? 'text-red-400' : p.risk === 'Medium' ? 'text-yellow-400' : 'text-green-400';
+                    const statusIcon = p.risk === 'High' ? '🔴' : p.risk === 'Medium' ? '🟡' : '🟢';
+                    return `<tr>
+                        <td class="font-medium">${p.name}</td>
+                        <td>${p.value}</td>
+                        <td class="text-gray-400 text-sm">${p.normal}</td>
+                        <td class="${statusColor}">${statusIcon} ${p.risk}</td>
+                        <td>
+                            <div class="risk-bar w-24">
+                                <div class="risk-bar-fill ${p.risk === 'High' ? 'bg-red-500' : p.risk === 'Medium' ? 'bg-yellow-500' : 'bg-green-500'}" 
+                                     style="width: ${p.risk === 'High' ? '80%' : p.risk === 'Medium' ? '50%' : '20%'}"></div>
+                            </div>
+                        </td>
+                    </tr>`;
+                }).join('');
+            }
+            
+            document.getElementById('classicalRiskBar').style.width = (result.classical.confidence * 100) + '%';
+            document.getElementById('classicalRiskText').textContent = (result.classical.confidence * 100).toFixed(1) + '%';
+            
+            document.getElementById('quantumRiskBar').style.width = (result.quantum.confidence * 100) + '%';
+            document.getElementById('quantumRiskText').textContent = (result.quantum.confidence * 100).toFixed(1) + '%';
+            
+            document.getElementById('finalRiskBar').style.width = (result.final_risk * 100) + '%';
+            document.getElementById('finalRiskText').textContent = (result.final_risk * 100).toFixed(1) + '%';
+            
+            const rec = document.getElementById('reportRecommendation');
+            if (result.risk_level === 'High') {
+                rec.innerHTML = '🚨 <span class="text-red-400">Urgent:</span> Consult a specialist immediately. Multiple risk factors detected.';
+            } else if (result.risk_level === 'Medium') {
+                rec.innerHTML = '⚠️ <span class="text-yellow-400">Schedule a check-up</span> within 2 weeks. Monitor vital signs regularly.';
+            } else {
+                rec.innerHTML = '✅ <span class="text-green-400">Continue healthy lifestyle.</span> Regular check-ups recommended annually.';
+            }
+            
+        } catch(err) {
+            alert('❌ Report error: ' + err.message);
+        } finally {
+            btn.innerHTML = 'Generate Report';
+            btn.disabled = false;
+        }
+    });
+
+    // ============================================
+    // ANALYTICS
+    // ============================================
+    let barChart, pieChart;
+
+    async function loadAnalytics() {
+        try {
+            const data = await apiCall('/analytics');
+            
+            document.getElementById('statPatients').textContent = data.total_patients || 0;
+            document.getElementById('statPredictions').textContent = data.total_predictions || 0;
+            document.getElementById('statClassical').textContent = ((data.avg_classical_confidence || 0) * 100).toFixed(1) + '%';
+            document.getElementById('statQuantum').textContent = ((data.avg_quantum_confidence || 0) * 100).toFixed(1) + '%';
+
+            const ctx1 = document.getElementById('barChart').getContext('2d');
+            if (barChart) barChart.destroy();
+            barChart = new Chart(ctx1, {
+                type: 'bar',
+                data: {
+                    labels: ['Classical SVM', 'Quantum QSVC'],
+                    datasets: [{
+                        label: 'Avg Confidence %',
+                        data: [(data.avg_classical_confidence || 0) * 100, (data.avg_quantum_confidence || 0) * 100],
+                        backgroundColor: ['#3b82f6', '#8b5cf6'],
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { labels: { color: '#9ca3af' } } },
+                    scales: {
+                        y: { beginAtZero: true, max: 100, ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        x: { ticks: { color: '#9ca3af' }, grid: { display: false } }
+                    }
+                }
+            });
+
+            const ctx2 = document.getElementById('pieChart').getContext('2d');
+            if (pieChart) pieChart.destroy();
+            const dist = data.disease_distribution || { High: 0, Medium: 0, Low: 0 };
+            pieChart = new Chart(ctx2, {
+                type: 'doughnut',
+                data: {
+                    labels: ['High Risk', 'Medium Risk', 'Low Risk'],
+                    datasets: [{
+                        data: [dist.High || 0, dist.Medium || 0, dist.Low || 0],
+                        backgroundColor: ['#ef4444', '#facc15', '#22c55e'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { position: 'bottom', labels: { color: '#9ca3af', padding: 20 } } }
+                }
+            });
+        } catch(e) { console.error('Analytics error:', e); }
+    }
+
+    // ============================================
+    // INITIAL LOAD
+    // ============================================
+    console.log('🧬 QMedix v2.0 - Quantum Medical Diagnosis System');
+    console.log('✅ Ready! Click "Get Started" to begin.');
+</script>
+</body>
+</html>
